@@ -21,7 +21,7 @@ def make_parser():
     parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.3, help='object confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.45, help='IOU threshold for NMS')
-    parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--device', default='cpu', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
     parser.add_argument('--nosave', action='store_true', help='do not save images/videos')
@@ -47,7 +47,7 @@ def detect():
 
     # Load model
     stride =32
-    model  = torch.jit.load(weights)
+    model  = torch.jit.load(weights, map_location='cpu')
     device = select_device(opt.device)
     half = device.type != 'cpu'  # half precision only supported on CUDA
     model = model.to(device)
@@ -89,7 +89,7 @@ def detect():
         t4 = time_synchronized()
 
         da_seg_mask = driving_area_mask(seg)
-        ll_seg_mask = lane_line_mask(ll)
+        # ll_seg_mask = lane_line_mask(ll)
 
         # Process detections
         for i, det in enumerate(pred):  # detections per image
@@ -118,12 +118,13 @@ def detect():
                         with open(txt_path + '.txt', 'a') as f:
                             f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
-                    if save_img :  # Add bbox to image
-                        plot_one_box(xyxy, im0, line_thickness=3)
+                    # if save_img :  # Add bbox to image
+                        # plot_one_box(xyxy, im0, line_thickness=3)
 
             # Print time (inference)
             print(f'{s}Done. ({t2 - t1:.3f}s)')
-            show_seg_result(im0, (da_seg_mask,ll_seg_mask), is_demo=True)
+            # show_seg_result(im0, (da_seg_mask,ll_seg_mask), is_demo=True)
+            show_seg_result(im0, ([da_seg_mask]), is_demo=True)
 
             # Save results (image with detections)
             if save_img:

@@ -181,7 +181,7 @@ def split_for_trace_model(pred = None, anchor_grid = None):
     pred = torch.cat(z, 1)
     return pred
 
-def show_seg_result(img, result, palette=None,is_demo=False):
+def show_seg_result(img, result, palette=None,is_demo=False, edge_thickness=3):
 
     if palette is None:
         palette = np.random.randint(
@@ -195,14 +195,19 @@ def show_seg_result(img, result, palette=None,is_demo=False):
     assert len(palette.shape) == 2
     
     if not is_demo:
+        # color_seg = np.zeros((result.shape[0], result.shape[1], 3), dtype=np.uint8)
         color_seg = np.zeros((result.shape[0], result.shape[1], 3), dtype=np.uint8)
         for label, color in enumerate(palette):
             color_seg[result == label, :] = color
     else:
         color_area = np.zeros((result[0].shape[0], result[0].shape[1], 3), dtype=np.uint8)
-        
-        color_area[result[0] == 1] = [0, 255, 0]
-        color_area[result[1] ==1] = [255, 0, 0]
+        #
+        # color_area[result[0] == 1] = [0, 255, 0]
+        # #-- This is realted to line detection color_area[result[1] ==1] = [255, 0, 0]
+        # color_seg = color_area
+        edge_pixels = cv2.Canny(result[0].astype(np.uint8), 0, 1)
+        dilated_edges = cv2.dilate(edge_pixels, None, iterations=edge_thickness)
+        color_area[dilated_edges != 0] = [0, 255, 0]
         color_seg = color_area
 
     # convert to BGR
