@@ -12,6 +12,8 @@ import cv2
 import numpy as np
 import torch
 import torchvision
+import matplotlib.pyplot as plt
+
 
 logger = logging.getLogger(__name__)
 
@@ -206,6 +208,37 @@ def show_seg_result(img, result, palette=None,is_demo=False, edge_thickness=3):
         # #-- This is realted to line detection color_area[result[1] ==1] = [255, 0, 0]
         # color_seg = color_area
         edge_pixels = cv2.Canny(result[0].astype(np.uint8), 0, 1)
+        print("edges", edge_pixels)
+
+        # # Display the edge_pixels image using OpenCV
+        # cv2.imshow("Edge Pixels", edge_pixels)
+        # cv2.waitKey(0)  # Wait for a key press
+
+        # Save the displayed image
+        output_filename = "edge_pixels_1.jpg"
+        cv2.imwrite(output_filename, edge_pixels)
+
+        # cv2.destroyAllWindows()  # Close the window after a key press
+        print(f"Image saved as {output_filename}")
+
+        polygon_coords = convert_seg_to_arr(edge_pixels)
+
+
+        # Save the matrix to a .npy file
+        np.save("chart_matrix2.npy", polygon_coords)
+
+
+        # Extract X and Y coordinates
+        x_coords = [coord[0] for coord in polygon_coords]
+        y_coords = [coord[1] for coord in polygon_coords]
+
+        # Create a scatter plot
+        plt.scatter(x_coords, y_coords, c='blue', marker='o', label='Points')
+        plt.xlabel('X Coordinate')
+        plt.ylabel('Y Coordinate')
+        plt.title('Visualization of polygon 2D Coordinates')
+        plt.savefig("polygon_coords_2.jpg")
+
         dilated_edges = cv2.dilate(edge_pixels, None, iterations=edge_thickness)
         color_area[dilated_edges != 0] = [0, 255, 0]
         color_seg = color_area
@@ -524,3 +557,18 @@ def lane_line_mask(ll = None):
     ll_seg_mask = torch.round(ll_seg_mask).squeeze(1)
     ll_seg_mask = ll_seg_mask.int().squeeze().cpu().numpy()
     return ll_seg_mask
+
+def convert_seg_to_arr(polygon):
+    # edge polygon has 255. convert that to 1 into a binary matrix
+    binary_matrix = polygon / 255
+
+    # Find edge pixels and convert to coordinates
+    polygon_coordinates = []
+    for y in range(binary_matrix.shape[0]):
+        for x in range(binary_matrix.shape[1]):
+            if binary_matrix[y, x] == 1:
+                # If your coordinate system has (0,0) at the top-left
+                # you might need to transform y as height - y - 1
+                polygon_coordinates.append([x, y])
+
+    return polygon_coordinates
