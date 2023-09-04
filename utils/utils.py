@@ -12,6 +12,7 @@ import cv2
 import numpy as np
 import torch
 import torchvision
+import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
@@ -206,6 +207,8 @@ def show_seg_result(img, result, palette=None,is_demo=False, edge_thickness=3):
         # #-- This is realted to line detection color_area[result[1] ==1] = [255, 0, 0]
         # color_seg = color_area
         edge_pixels = cv2.Canny(result[0].astype(np.uint8), 0, 1)
+
+        print(get_drivable_area_in_1D(edge_pixels))
         dilated_edges = cv2.dilate(edge_pixels, None, iterations=edge_thickness)
         color_area[dilated_edges != 0] = [0, 255, 0]
         color_seg = color_area
@@ -218,7 +221,37 @@ def show_seg_result(img, result, palette=None,is_demo=False, edge_thickness=3):
     # img = img * 0.5 + color_seg * 0.5
     #img = img.astype(np.uint8)
     #img = cv2.resize(img, (1280,720), interpolation=cv2.INTER_LINEAR)
-    return 
+    return edge_pixels
+
+
+def get_drivable_area_in_1D(segmentation_matrix):
+
+    # discretized_matrix = discretize_width(segmentation_matrix)
+    # polygon_coords = convert_seg_to_arr(discretized_matrix)
+
+    polygon_coords = convert_seg_to_arr(segmentation_matrix)
+
+    # print(polygon_coords)
+    # Create a dictionary to store the maximum Y value for each X value
+    
+    filtered_polygon_coords = remove_bottom_edge(polygon_coords)
+    y_coords = get_1D_arr(filtered_polygon_coords, len(segmentation_matrix[0]))
+    # print(y_coords)
+
+    # Extract X and Y coordinates
+    x_coords_plot = [coord[0] for coord in filtered_polygon_coords]
+    y_coords_plot = [coord[1] for coord in filtered_polygon_coords]
+
+    # Create a scatter plot
+    plt.scatter(x_coords_plot, y_coords_plot, c='blue', marker='o', label='Points')
+    plt.xlabel('X Coordinate')
+    plt.ylabel('Y Coordinate')
+    plt.title('Visualization of polygon 2D Coordinates')
+    plt.savefig("polygon_coords_2.jpg")
+
+    print(len(y_coords))
+    return y_coords
+    
 
 
 def increment_path(path, exist_ok=True, sep=''):
@@ -524,3 +557,70 @@ def lane_line_mask(ll = None):
     ll_seg_mask = torch.round(ll_seg_mask).squeeze(1)
     ll_seg_mask = ll_seg_mask.int().squeeze().cpu().numpy()
     return ll_seg_mask
+
+
+def discretize_width(segmentation_matrix):
+    step_width = segmentation_matrix.shape[1] // 100
+    downsampled_matrix = np.zeros((segmentation_matrix.shape[0], 100))
+
+    # Populate the downsampled matrix by averaging nearby points
+    for i in range(segmentation_matrix.shape[0]):
+        for j in range(100):
+            start_col, end_col = j * step_width, (j + 1) * step_width
+            subarray = segmentation_matrix[i, start_col:end_col]
+            downsampled_matrix[i, j] = np.median(subarray)
+
+    print(downsampled_matrix)
+    return downsampled_matrix
+
+
+def convert_seg_to_arr(polygon):
+    # edge polygon has 255. convert that to 1 into a binary matrix
+    binary_matrix = polygon / 255
+    # print(binary_matrix.shape)
+
+    # Find edge pixels and convert to coordinates
+    polygon_coordinates = []
+    for y in range(binary_matrix.shape[0]):
+        for x in range(binary_matrix.shape[1]):
+            if binary_matrix[y, x] == 1:
+                # If your coordinate system has (0,0) at the top-left
+                # you might need to transform y as height - y - 1
+                temp_y = binary_matrix.shape[0] - y - 1
+                polygon_coordinates.append([x, temp_y])
+
+    return polygon_coordinates
+
+
+def remove_bottom_edge(polygon_coords):
+    max_y_values = {}
+    for x, y in polygon_coords:
+        if x in max_y_values:
+            max_y_values[x] = max(max_y_values[x], y)
+        else:
+            max_y_values[x] = y
+
+    # Filter out points with minimum Y value for each X value
+    filtered_polygon_coords = [(x, y) for x, y in polygon_coords if y == max_y_values[x]]
+    return filtered_polygon_coords
+
+
+def get_1D_arr(polygon_coords, arr_size):
+    # Sort the coordinates by X coordinates
+    sorted_coords = sorted(polygon_coords, key=lambda coord: coord[0])
+
+    # Initialize the result array with None values
+    result_arr = [None] * arr_size
+    
+    # Iterate through the sorted coordinates and fill in the result array
+    for coord in sorted_coords:
+        x, y = coord
+        if 0 <= x < arr_size:  # Make sure the coordinate is within the array bounds
+            result_arr[x] = y
+
+    # y_coords = [coord[1] for coord in sorted_coords]
+
+    # return y_coords
+    print("1D arr", len(result_arr))
+
+    return result_arr
